@@ -1,2 +1,3 @@
-# COMP4329_Assignment1
+# COMP4329 Assignment 1
+
 Deep Learning Assignment1
