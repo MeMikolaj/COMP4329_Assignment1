@@ -18,11 +18,11 @@ class Activation(object):
 
     # ReLU activation function
     def _ReLU(self, x):
-        return np.max(np.array([0, x]))
+        return np.maximum(0, x)
     
     def _ReLU_deriv(self, a):
         # For simplicity, derivative at a=0 is 0 <- very rare event 
-        return 1 if a > 0 else 0
+        return (a > 0) * 1
         
     # Leaky ReLU activation function - Adjust alpha (0.1)
     def _LeakyReLU(self, x):
@@ -91,6 +91,10 @@ class HiddenLayer(object):
         self.grad_W = np.zeros(self.W.shape)
         self.grad_b = np.zeros(self.b.shape)
 
+        # for momentum
+        self.v = np.zeros_like(n_in)
+
+
     # Forward Pass
     def forward(self, input):
         '''
@@ -117,8 +121,6 @@ class HiddenLayer(object):
     
 # Implement MLP with a fully configurable number of layers and neurons. Adaptt the weights using backpropagation algorithmx
 class MLP:
-    """
-    """
 
     # for initiallization, the code will create all layers automatically based on the provided parameters.
     def __init__(self, layers, activation=[None,'relu','relu']):
@@ -134,39 +136,62 @@ class MLP:
         self.activation=activation
         # 2 layers: 1 hidden layer. 3 layers: 2 hidden layers.... 
         for i in range(len(layers)-1):
-            self.layers.append(HiddenLayer(layers[i],layers[i+1],activation[i],activation[i+1]))
+            self.layers.append(
+                HiddenLayer(
+                    n_in=layers[i],
+                    n_out=layers[i+1],
+                    activation_last_layer=activation[i],
+                    activation=activation[i+1],
+                )
+            )
 
     # forward progress: pass the information through the layers and out the results of final output layer
     def forward(self,input):
         for layer in self.layers:
-            output=layer.forward(input)
-            input=output
+            output = layer.forward(input)
+            input = output
         return output
 
     # ------------------------------------------------------------------------------- Add SoftMax and Cross Entropy Loss, Change 2 methods below
     # define the objection/loss function, we use mean sqaure error (MSE) as the loss
     # you can try other loss, such as cross entropy.
     # when you try to change the loss, you should also consider the backward formula for the new loss as well!
-    def criterion_MSE(self,y,y_hat):
+    def criterion_MSE(self, y, y_hat):
+        
+        # get the activation function's derivative
         activation_deriv=Activation(self.activation[-1]).f_deriv
+        
         # MSE
-        error = y-y_hat
-        loss=error**2
+        error = y - y_hat
+        loss = (error**2).mean(axis=0)
+
         # calculate the MSE's delta of the output layer
         delta=-2*error*activation_deriv(y_hat)
+
         # return loss and delta
         return loss,delta
 
     # backward progress
     def backward(self,delta):
+
+        # calculate the delta
         delta=self.layers[-1].backward(delta,output_layer=True)
         for layer in reversed(self.layers[:-1]):
             delta=layer.backward(delta)
 
     # update the network weights after backward.
     # make sure you run the backward function before the update function!
-    def update(self,lr):
+    def update(self,lr,momentum=0):
+
         for layer in self.layers:
+
+            # if momentum is given (non-zero) - SGD with momentum
+            if (momentum):
+                # differentiation is already calculated: layer.grad_W
+                layer.v = momentum * layer.v - lr * layer.grad_W
+                layer.W += layer.v
+
+            # momentum is not given (normal SGD)
             layer.W -= lr * layer.grad_W
             layer.b -= lr * layer.grad_b
 
@@ -174,7 +199,7 @@ class MLP:
     # ------------------------------------------------ Here last layer output we need to do Softmax, then cross-entropy loss
     # define the training function
     # it will return all losses within the whole training process.
-    def fit(self,X,y,learning_rate=0.1, epochs=100):
+    def fit(self, X, y, learning_rate=0.1, epochs=100, momentum=0.9):
         """
         Online learning.
         :param X: Input data or features
@@ -186,21 +211,26 @@ class MLP:
         y=np.array(y)
         to_return = np.zeros(epochs)
 
+        # stochastic gradient descent
         for k in range(epochs):
+
             loss=np.zeros(X.shape[0])
             for it in range(X.shape[0]):
-                i=np.random.randint(X.shape[0])
 
                 # forward pass
-                y_hat = self.forward(X[i])
+                y_hat = self.forward(X[it])
 
                 # backward pass
-                loss[it],delta=self.criterion_MSE(y[i],y_hat)
+                loss[it],delta=self.criterion_MSE(y[it],y_hat)
                 self.backward(delta)
-                y # --------------------------- y what? Incomplete code form tutorial
+                
                 # update
-                self.update(learning_rate)
+                self.update(learning_rate, momentum=momentum)
+            
             to_return[k] = np.mean(loss)
+
+            print("[%3d/%3d]: loss=%.5f" % (k, epochs, to_return[k]))
+        
         return to_return
 
     # define the prediction function
