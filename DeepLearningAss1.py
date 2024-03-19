@@ -246,3 +246,40 @@ nn = MLP([80, 40 ,10], [None,'relu','leakyrelu'])
 
 
 # ------------- Add graph with ground truth data and with our predictions on test data
+
+
+# From Tutorial 4. Adam. 
+def gd_adam(df_dx, x0, conf_para=None):
+
+    if conf_para is None:
+        conf_para = {}
+
+    conf_para.setdefault('n_iter', 1000) #number of iterations
+    conf_para.setdefault('learning_rate', 0.001) #learning rate
+    conf_para.setdefault('rho1', 0.9)
+    conf_para.setdefault('rho2', 0.999)
+    conf_para.setdefault('epsilon', 1e-8)
+
+    x_traj = []
+    x_traj.append(x0)
+    t = 0
+    s = np.zeros_like(x0)
+    r = np.zeros_like(x0)
+
+    for iter in range(1, conf_para['n_iter']+1):
+        dfdx = np.array(df_dx(x_traj[-1][0], x_traj[-1][1]))
+        t += 1
+        s = conf_para['rho1']*s + (1-conf_para['rho1'])*dfdx # 1
+        r = conf_para['rho2']*r + (1-conf_para['rho2'])*(dfdx**2) # 2
+        st = s / (1 - conf_para['rho1']**t) # 3.1
+        rt = r / (1 - conf_para['rho2']**t) # 3.2
+
+        x_traj.append(x_traj[-1] - conf_para['learning_rate'] * st / (np.sqrt(rt+conf_para['epsilon'])) * dfdx) # 4 - modified solution from tutorial, epsilon also in sqrt
+
+    return x_traj
+
+# Need to incorporate it in here:
+x0 = np.array([1.0,1.5]) # Initial point - We need to figure out how to choose one
+conf_para_momentum = {'n_iter':100,'learning_rate':0.005} # parameters
+x_traj_momentum = gd_adam(dbeale_dx, x0, conf_para_momentum) # dbeale_dx is a derivative of a surface function which we optimise on, with respect to x1 and x2 returning dfdx1, dfdx2
+print("The final solution is (x_1,x_2) = (",x_traj_momentum[-1][0],",",x_traj_momentum[-1][1],")") #The answer that we found
