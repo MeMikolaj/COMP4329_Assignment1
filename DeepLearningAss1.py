@@ -1,6 +1,7 @@
 # Load the packages
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 # Our data has 10 different labels 0-9 so we need to have 10 neurons as the output (I checked the label data)
 # Training data is numbers between -10, 10. Each row has 128 values
@@ -12,13 +13,28 @@ import matplotlib.pyplot as plt
 # 4. Loss Backwards
 # 5. Optimizer Step
 
+# Load the data
+train_data = np.load('/content/train_data.npy')
+train_label = np.load('/content/train_label.npy')
+test_data = np.load('/content/test_data.npy')
+test_label = np.load('/content/test_label.npy')
+
+# Normalize the data
+flattened_train_data = train_data.flatten()
+flattened_test_data = test_data.flatten()
+
+normalized_train_data = np.interp(flattened_train_data, (np.min(flattened_train_data), np.max(flattened_train_data)), (-1, 1))
+normalized_test_data = np.interp(flattened_test_data, (np.min(flattened_train_data), np.max(flattened_train_data)), (-1, 1))
+
+train_data = normalized_train_data.reshape(train_data.shape)
+test_data = normalized_test_data.reshape(test_data.shape)
 
 # Create an activation class
 class Activation(object):
 
     # ReLU activation function
     def _ReLU(self, x):
-        return np.max(np.array([0, x]))
+        return x if x >= 0 else 0
     
     def _ReLU_deriv(self, a):
         # For simplicity, derivative at a=0 is 0 <- very rare event 
@@ -150,16 +166,17 @@ class MLP:
     def criterion_MSE(self,y,y_hat):
         activation_deriv=Activation(self.activation[-1]).f_deriv
         # MSE
-        error = y-y_hat
-        loss=error**2
+        error = y - y_hat
+        loss = 0.5 * error**2
         # calculate the MSE's delta of the output layer
-        delta=-2*error*activation_deriv(y_hat)
+        # Pre-compute the gradient of previous layer's activation func.
+        delta = -error * activation_deriv(y_hat)
         # return loss and delta
-        return loss,delta
+        return loss, delta
 
     # backward progress
     def backward(self,delta):
-        delta=self.layers[-1].backward(delta,output_layer=True)
+        delta=self.layers[-1].backward(delta)
         for layer in reversed(self.layers[:-1]):
             delta=layer.backward(delta)
 
@@ -197,7 +214,7 @@ class MLP:
                 # backward pass
                 loss[it],delta=self.criterion_MSE(y[i],y_hat)
                 self.backward(delta)
-                y # --------------------------- y what? Incomplete code form tutorial
+
                 # update
                 self.update(learning_rate)
             to_return[k] = np.mean(loss)
@@ -219,7 +236,7 @@ class MLP:
 ####################  - LEARNING AND TESTING -  ####################
     
 ### Try different MLP models # 2 Hidden Layers here
-nn = MLP([80, 40 ,10], [None,'relu','leakyrelu'])
+nn = MLP([128, 80, 40 ,1], [None,'relu', 'relu', 'leakyrelu'])
 # input_data = 
 # output_data = 
 
@@ -248,7 +265,7 @@ nn = MLP([80, 40 ,10], [None,'relu','leakyrelu'])
 # ------------- Add graph with ground truth data and with our predictions on test data
 
 
-# From Tutorial 4. Adam. 
+# Adam - Checked, correct version
 def gd_adam(df_dx, x0, conf_para=None):
 
     if conf_para is None:
@@ -274,7 +291,7 @@ def gd_adam(df_dx, x0, conf_para=None):
         st = s / (1 - conf_para['rho1']**t) # 3.1
         rt = r / (1 - conf_para['rho2']**t) # 3.2
 
-        x_traj.append(x_traj[-1] - conf_para['learning_rate'] * st / (np.sqrt(rt+conf_para['epsilon'])) * dfdx) # 4 - modified solution from tutorial, epsilon also in sqrt
+        x_traj.append(x_traj[-1] - conf_para['learning_rate'] * st / (np.sqrt(rt+conf_para['epsilon']))) # 4
 
     return x_traj
 
