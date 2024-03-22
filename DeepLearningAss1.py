@@ -228,19 +228,23 @@ class MLP:
 
     # update the network weights after backward.
     # make sure you run the backward function before the update function!
-    def update(self,lr,momentum=0):
+    def update(self,lr,momentum=0,weight_decay=0):
 
         for layer in self.layers:
+
+            # momentum is not given (normal SGD)
+            layer.W -= lr * layer.grad_W
+            layer.b -= lr * layer.grad_b
+
+            # given weight decay
+            if (weight_decay):
+                layer.W = (1 - lr * weight_decay) * layer.W - lr * layer.grad_W
 
             # if momentum is given (non-zero) - SGD with momentum
             if (momentum):
                 # differentiation is already calculated: layer.grad_W
                 layer.v = momentum * layer.v - lr * layer.grad_W
                 layer.W += layer.v
-
-            # momentum is not given (normal SGD)
-            layer.W -= lr * layer.grad_W
-            layer.b -= lr * layer.grad_b
 
 
     # ------------------------------------------------ Here last layer output we need to do Softmax, then cross-entropy loss
@@ -252,6 +256,7 @@ class MLP:
             learning_rate: float = 0.1, 
             epochs: int = 100, 
             momentum: float = 0.9,
+            weight_decay: float = 0.01,
             loss_fn: str = 'MSE',
             optimizer: str = 'SGD',
         ):
@@ -289,7 +294,7 @@ class MLP:
                 self.backward(delta)
 
                 # update
-                self.update(learning_rate, momentum=momentum)
+                self.update(learning_rate, momentum=momentum, weight_decay=weight_decay)
             
             to_return[k] = np.mean(loss)
 

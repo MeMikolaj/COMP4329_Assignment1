@@ -32,8 +32,9 @@ def main():
         X=train_data,
         y=train_label,
         learning_rate=0.001,
-        epochs=100,
-        momentum=0.9,
+        epochs=5,
+        # momentum=0.9,
+        weight_decay=0.01, # TODO: momentum and weight decay work independently, can they work together?
         loss_fn='CCE',
         optimizer='SGD',
     )
