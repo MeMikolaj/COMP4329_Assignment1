@@ -34,11 +34,11 @@ class Activation(object):
 
     # ReLU activation function
     def _ReLU(self, x):
-        return x if x >= 0 else 0
+        return np.maximum(0, x)
     
     def _ReLU_deriv(self, a):
         # For simplicity, derivative at a=0 is 0 <- very rare event 
-        return 1 if a > 0 else 0
+        return (a > 0) * 1
         
     # Leaky ReLU activation function - Adjust alpha (0.1)
     def _LeakyReLU(self, x):
@@ -107,6 +107,10 @@ class HiddenLayer(object):
         self.grad_W = np.zeros(self.W.shape)
         self.grad_b = np.zeros(self.b.shape)
 
+        # for momentum
+        self.v = np.zeros_like(n_in)
+
+
     # Forward Pass
     def forward(self, input):
         '''
@@ -133,8 +137,6 @@ class HiddenLayer(object):
     
 # Implement MLP with a fully configurable number of layers and neurons. Adaptt the weights using backpropagation algorithmx
 class MLP:
-    """
-    """
 
     # for initiallization, the code will create all layers automatically based on the provided parameters.
     def __init__(self, layers, activation=[None,'relu','relu']):
@@ -150,21 +152,31 @@ class MLP:
         self.activation=activation
         # 2 layers: 1 hidden layer. 3 layers: 2 hidden layers.... 
         for i in range(len(layers)-1):
-            self.layers.append(HiddenLayer(layers[i],layers[i+1],activation[i],activation[i+1]))
+            self.layers.append(
+                HiddenLayer(
+                    n_in=layers[i],
+                    n_out=layers[i+1],
+                    activation_last_layer=activation[i],
+                    activation=activation[i+1],
+                )
+            )
 
     # forward progress: pass the information through the layers and out the results of final output layer
     def forward(self,input):
         for layer in self.layers:
-            output=layer.forward(input)
-            input=output
+            output = layer.forward(input)
+            input = output
         return output
 
     # ------------------------------------------------------------------------------- Add SoftMax and Cross Entropy Loss, Change 2 methods below
     # define the objection/loss function, we use mean sqaure error (MSE) as the loss
     # you can try other loss, such as cross entropy.
     # when you try to change the loss, you should also consider the backward formula for the new loss as well!
-    def criterion_MSE(self,y,y_hat):
+    def criterion_MSE(self, y, y_hat):
+        
+        # get the activation function's derivative
         activation_deriv=Activation(self.activation[-1]).f_deriv
+        
         # MSE
         error = y - y_hat
         loss = 0.5 * error**2
@@ -182,8 +194,17 @@ class MLP:
 
     # update the network weights after backward.
     # make sure you run the backward function before the update function!
-    def update(self,lr):
+    def update(self,lr,momentum=0):
+
         for layer in self.layers:
+
+            # if momentum is given (non-zero) - SGD with momentum
+            if (momentum):
+                # differentiation is already calculated: layer.grad_W
+                layer.v = momentum * layer.v - lr * layer.grad_W
+                layer.W += layer.v
+
+            # momentum is not given (normal SGD)
             layer.W -= lr * layer.grad_W
             layer.b -= lr * layer.grad_b
 
@@ -191,7 +212,7 @@ class MLP:
     # ------------------------------------------------ Here last layer output we need to do Softmax, then cross-entropy loss
     # define the training function
     # it will return all losses within the whole training process.
-    def fit(self,X,y,learning_rate=0.1, epochs=100):
+    def fit(self, X, y, learning_rate=0.1, epochs=100, momentum=0.9):
         """
         Online learning.
         :param X: Input data or features
@@ -203,21 +224,25 @@ class MLP:
         y=np.array(y)
         to_return = np.zeros(epochs)
 
+        # stochastic gradient descent
         for k in range(epochs):
+
             loss=np.zeros(X.shape[0])
             for it in range(X.shape[0]):
-                i=np.random.randint(X.shape[0])
 
                 # forward pass
-                y_hat = self.forward(X[i])
+                y_hat = self.forward(X[it])
 
                 # backward pass
-                loss[it],delta=self.criterion_MSE(y[i],y_hat)
+                loss[it],delta=self.criterion_MSE(y[it],y_hat)
                 self.backward(delta)
-
                 # update
-                self.update(learning_rate)
+                self.update(learning_rate, momentum=momentum)
+            
             to_return[k] = np.mean(loss)
+
+            print("[%3d/%3d]: loss=%.5f" % (k, epochs, to_return[k]))
+        
         return to_return
 
     # define the prediction function
@@ -266,37 +291,37 @@ nn = MLP([128, 80, 40 ,1], [None,'relu', 'relu', 'leakyrelu'])
 
 
 # Adam - Checked, correct version
-def gd_adam(df_dx, x0, conf_para=None):
+# def gd_adam(df_dx, x0, conf_para=None):
 
-    if conf_para is None:
-        conf_para = {}
+#     if conf_para is None:
+#         conf_para = {}
 
-    conf_para.setdefault('n_iter', 1000) #number of iterations
-    conf_para.setdefault('learning_rate', 0.001) #learning rate
-    conf_para.setdefault('rho1', 0.9)
-    conf_para.setdefault('rho2', 0.999)
-    conf_para.setdefault('epsilon', 1e-8)
+#     conf_para.setdefault('n_iter', 1000) #number of iterations
+#     conf_para.setdefault('learning_rate', 0.001) #learning rate
+#     conf_para.setdefault('rho1', 0.9)
+#     conf_para.setdefault('rho2', 0.999)
+#     conf_para.setdefault('epsilon', 1e-8)
 
-    x_traj = []
-    x_traj.append(x0)
-    t = 0
-    s = np.zeros_like(x0)
-    r = np.zeros_like(x0)
+#     x_traj = []
+#     x_traj.append(x0)
+#     t = 0
+#     s = np.zeros_like(x0)
+#     r = np.zeros_like(x0)
 
-    for iter in range(1, conf_para['n_iter']+1):
-        dfdx = np.array(df_dx(x_traj[-1][0], x_traj[-1][1]))
-        t += 1
-        s = conf_para['rho1']*s + (1-conf_para['rho1'])*dfdx # 1
-        r = conf_para['rho2']*r + (1-conf_para['rho2'])*(dfdx**2) # 2
-        st = s / (1 - conf_para['rho1']**t) # 3.1
-        rt = r / (1 - conf_para['rho2']**t) # 3.2
+#     for iter in range(1, conf_para['n_iter']+1):
+#         dfdx = np.array(df_dx(x_traj[-1][0], x_traj[-1][1]))
+#         t += 1
+#         s = conf_para['rho1']*s + (1-conf_para['rho1'])*dfdx # 1
+#         r = conf_para['rho2']*r + (1-conf_para['rho2'])*(dfdx**2) # 2
+#         st = s / (1 - conf_para['rho1']**t) # 3.1
+#         rt = r / (1 - conf_para['rho2']**t) # 3.2
 
-        x_traj.append(x_traj[-1] - conf_para['learning_rate'] * st / (np.sqrt(rt+conf_para['epsilon']))) # 4
+#         x_traj.append(x_traj[-1] - conf_para['learning_rate'] * st / (np.sqrt(rt+conf_para['epsilon']))) # 4
 
-    return x_traj
+#     return x_traj
 
-# Need to incorporate it in here:
-x0 = np.array([1.0,1.5]) # Initial point - We need to figure out how to choose one
-conf_para_momentum = {'n_iter':100,'learning_rate':0.005} # parameters
-x_traj_momentum = gd_adam(dbeale_dx, x0, conf_para_momentum) # dbeale_dx is a derivative of a surface function which we optimise on, with respect to x1 and x2 returning dfdx1, dfdx2
-print("The final solution is (x_1,x_2) = (",x_traj_momentum[-1][0],",",x_traj_momentum[-1][1],")") #The answer that we found
+# # Need to incorporate it in here:
+# x0 = np.array([1.0,1.5]) # Initial point - We need to figure out how to choose one
+# conf_para_momentum = {'n_iter':100,'learning_rate':0.005} # parameters
+# x_traj_momentum = gd_adam(dbeale_dx, x0, conf_para_momentum) # dbeale_dx is a derivative of a surface function which we optimise on, with respect to x1 and x2 returning dfdx1, dfdx2
+# print("The final solution is (x_1,x_2) = (",x_traj_momentum[-1][0],",",x_traj_momentum[-1][1],")") #The answer that we found
