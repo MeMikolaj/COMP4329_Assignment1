@@ -38,25 +38,25 @@ class Activation(object):
 
     # ReLU activation function
     def _ReLU(self, x):
-        return np.maximum(0, x)
+        return np.maximum(x, 0)
     
     def _ReLU_deriv(self, a):
         # For simplicity, derivative at a=0 is 0 <- very rare event 
-        return (a > 0) * 1
+        return np.where(a > 0, 1, 0)
         
     # Leaky ReLU activation function - Adjust alpha (0.1)
-    def _LeakyReLU(self, x):
-        return x if x >= 0 else 0.1*x
+    def _LeakyReLU(self, x, alpha=0.1):
+        return np.maximum(x, alpha*x)
     
-    def _LeakyReLU_deriv(self, a):
+    def _LeakyReLU_deriv(self, a, alpha=0.1):
         # For simplicity, derivative at a=0 is 0 <- very rare event
-        return 1 if a > 0 else 0.1 # 0.1 = alpha
+        return np.where(a > 0, 1, alpha)
 
     # Softmax activation function - used with Categorical Cross Entropy (CCE) loss function
-    def __Softmax(self, x):
+    def _Softmax(self, x):
         return np.exp(x) / np.sum(np.exp(x), axis=0)
     
-    def __Softmax_deriv(self, a):
+    def _Softmax_deriv(self, a):
         am = np.array(a).reshape((-1,1))
         return np.diagflat(a) - np.dot(am, am.T)
     
@@ -72,9 +72,9 @@ class Activation(object):
             self.f = self._LeakyReLU
             self.f_deriv = self._LeakyReLU_deriv
         
-        else:
-            self.f = self.__Softmax
-            self.f_deriv = self.__Softmax_deriv
+        elif activation == 'softmax':
+            self.f = self._Softmax
+            self.f_deriv = self._Softmax_deriv
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------
             
@@ -323,31 +323,41 @@ if (__name__ == "__main__"):
 
     main()
 
-    ### Try different MLP models # 2 Hidden Layers here
-    # nn = MLP([128, 80, 40 ,1], [None,'relu', 'relu', 'leakyrelu'])
-    # input_data = 
-    # output_data = 
-
-    ### Try different learning rate and epochs
-    #MSE = nn.fit(input_data, output_data, learning_rate=0.001, epochs=500)
-    #print('loss:%f'%MSE[-1])
-
-    # Visualise the loss!!!
-    #plt.figure(figsize=(15,4))
-    #plt.plot(MSE)
-    #plt.grid()
-
-    ### ---------------- Try different MLP models, different hyperparameters
-
-    # Testing!!!!!!!!!!!!!!!
-    # output = nn.predict(input_data)
-    # visualizing the predict results
-    # notes: since we use tanh function for the final layer, that means the output will be in range of [0,1]
-    #plt.figure(figsize=(8,6))
-    #plt.scatter(output_data, output, s=100)
-    #plt.xlabel('Targets')
-    #plt.ylabel('MLP output')
-    #plt.grid()
+        #### Try different MLP models 
+        #nn = MLP([128, 80, 40 ,1], [None,'leakyrelu', 'relu', 'relu'])
+        #
+        ## Smaller data for the sake of testing and complexity
+        #input_data = train_data[0:1000,:]
+        #output_data = train_label[0:1000,:]
+        #print(input_data.shape)
+        #print(output_data.shape)
+        #
+        #### Try different learning rate and epochs
+        #MSE = nn.fit(input_data, output_data, learning_rate=0.001, epochs=500)
+        #print('loss:%f'%MSE[-1])
+        #
+        ## Visualise
+        #plt.figure(figsize=(15,4))
+        #plt.plot(MSE)
+        #plt.grid()
+        #
+        ## Test
+        #output = nn.predict(test_data[0:1000,:])
+        #plt.figure(figsize=(8,6))
+        #plt.scatter(test_label[0:1000,:], output, s=1000)
+        #plt.xlabel('Targets')
+        #plt.ylabel('MLP output')
+        #plt.grid()
+        #correct = 0
+        #incorrect = 0
+        #for i in range(1000):
+        #  print(str(output[i]) + " and " + str(test_label[i]))
+        #  if output[i] == test_label[i]:
+        #    correct+=1
+        #  else:
+        #    incorrect+=1
+        #print(correct)
+        #print(incorrect)
 
 
     # ------------- Add graph with ground truth data and with our predictions on test data
